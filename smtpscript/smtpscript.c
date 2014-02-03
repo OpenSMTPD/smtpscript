@@ -118,15 +118,18 @@ static struct op	* _op_connect;
 
 int		verbose;
 int		randomdelay; /* between each testcase */
+int		tapout;
 size_t		rundelay; /* between each testcase */
 
 static size_t	test_pass;
 static size_t	test_skip;
 static size_t	test_fail;
 static size_t	test_error;
+static size_t	test_total = 0;
 
 static struct op *op_add_child(struct op *, const struct op *);
 static void run_testcase(struct procedure *);
+static void print_testcase(char *status, char *name, char *reason, size_t number);
 static void process_op(struct ctx *, struct op *);
 static const char * parse_smtp_response(char *, size_t, char **, int *);
 
@@ -359,7 +362,7 @@ static void
 usage(void)
 {
 	extern const char *__progname;
-	errx(1, "usage: [-rv] [-d delay] %s script", __progname);
+	errx(1, "Usage: %s [-rvt] [-d delay] script", __progname);
 }
 
 int
@@ -369,7 +372,7 @@ main(int argc, char **argv)
 	struct procedure	*p;
 	int			 ch;
 
-	while ((ch = getopt(argc, argv, "d:rv")) != -1) {
+	while ((ch = getopt(argc, argv, "d:rvt")) != -1) {
 		switch(ch) {
 		case 'v':
 			verbose += 1;
@@ -379,6 +382,9 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			randomdelay = 1;
+			break;
+		case 't':
+			tapout = 1;
 			break;
 		default:
 			usage();
@@ -397,18 +403,25 @@ main(int argc, char **argv)
 
 	_op_connect = op_connect(NULL, "127.0.0.1", 25);
 
+	if (tapout) {
+		printf("# smtpscript is an SMTP testing framework\n\n");
+		printf("TAP version 13\n");
+	}
+
 	TAILQ_FOREACH(p, &s->procs, entry)
 		if (p->flags & PROC_TESTCASE)
 			run_testcase(p);
 
-	printf("===> all run\n");
-	printf("passed: %zu/%zu (skipped: %zu, failed: %zu, error: %zu)\n",
+	if (tapout)
+		printf("1..%zu\n", test_total);
+	else {
+		printf("passed: %zu/%zu (skipped: %zu, failed: %zu, error: %zu)\n",
 		test_pass,
-		test_pass + test_skip + test_fail + test_error,
+		test_total,
 		test_skip,
 		test_fail,
 		test_error);
-
+	}
 	return (0);
 }
 
@@ -441,7 +454,6 @@ op_add_child(struct op *parent, const struct op *op)
 static void
 run_testcase(struct procedure *proc)
 {
-	char		 buf[256];
 	struct ctx	 c;
 	uint32_t	 rdelay;
 
@@ -456,9 +468,7 @@ run_testcase(struct procedure *proc)
 			rdelay = rundelay;
 		usleep(rdelay);
 	}
-	snprintf(buf, sizeof buf,
-	    "===> running test-case \"%s\" ", proc->name);
-	printf("%s", buf);
+
 	fflush(stdout);
 
 	if (proc->flags & PROC_SKIP) {
@@ -484,41 +494,43 @@ run_testcase(struct procedure *proc)
 	iobuf_clear(&c.iobuf);
 
 	if (verbose > 1) {
-		printf("===> done with test-case \"%s\": ", proc->name);
+		printf("# Done with test-case \"%s\": ", proc->name);
 	}
 
 	switch (c.result) {
 	case RES_OK:
+		test_total += 1;
 		if (proc->flags & PROC_EXPECTFAIL) {
-			printf("ok (failed)\n");
-			fprintf(stderr, "*** FAIL: should have failed\n");
+			print_testcase("not ok", proc->name, strcat("TODO", c.reason), test_total); // XPass
 			test_fail += 1;
 		} else {
-			printf("ok\n");
+			print_testcase("ok", proc->name, c.reason, test_total);
 			test_pass += 1;
 		}
 		break;
 
 	case RES_SKIP:
-		printf("skip\n");
 		test_skip += 1;
+		test_total += 1;
+		print_testcase("not ok", proc->name, strcat("SKIP", c.reason), test_total); // Skip
 		break;
 
 	case RES_FAIL:
+		test_total += 1;
 		if (proc->flags & PROC_EXPECTFAIL) {
-			printf("fail (expected)\n");
+			print_testcase("not ok", proc->name, strcat("TODO", c.reason), test_total); // XFail
 			test_pass += 1;
-		} else {
-			printf("fail\n");
-			fprintf(stderr, "*** FAIL: %s\n", c.reason);
+		}
+		else {
+			print_testcase("not ok", proc->name, c.reason, test_total);
 			test_fail += 1;
 		}
 		break;
 
 	case RES_ERROR:
-		printf("error\n");
-		fprintf(stderr, " *** ERROR: %s\n", c.reason);
 		test_error += 1;
+		test_total += 1;
+		print_testcase("not ok", proc->name, c.reason, test_total);
 		break;
 	}
 
@@ -526,6 +538,18 @@ run_testcase(struct procedure *proc)
 		printf("\n");
 	}
 
+}
+
+void print_testcase(char *status, char *name, char *reason, size_t number)
+{
+        char	buf[256];
+	printf("%s", status);
+	snprintf(buf, sizeof buf, "- %s", name);
+	printf(" %zu %s", number, buf);
+	if (reason)
+		printf(" # %s\n", reason);
+	else
+		printf("\n");
 }
 
 static size_t
