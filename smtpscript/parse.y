@@ -313,7 +313,7 @@ procparams	: procparam procparams
 		;
 
 proc		: PROC STRING {
-			printf("proc %s\n", $2);
+			printf("# proc %s\n", $2);
 			currproc = procedure_create(currscript, $2);
 			if (currproc == NULL)
 				file->errors++;
