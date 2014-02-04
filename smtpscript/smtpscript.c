@@ -499,7 +499,7 @@ run_testcase(struct procedure *proc)
 			print_testcase("ok", proc->name, c.reason, "SKIP", test_total);
 		}
 		else {
-			print_testcase("ok", proc->name, c.reason, "", test_total);
+			print_testcase("ok", proc->name, c.reason, NULL, test_total);
 			test_pass += 1;
 		}
 
@@ -521,7 +521,7 @@ run_testcase(struct procedure *proc)
                         print_testcase("ok", proc->name, c.reason, "SKIP", test_total);
                 }
 		else {
-			print_testcase("not ok", proc->name, c.reason, "", test_total);
+			print_testcase("not ok", proc->name, c.reason, NULL, test_total);
 			test_fail += 1;
 		}
 
@@ -530,7 +530,7 @@ run_testcase(struct procedure *proc)
 	case RES_ERROR:
 		test_error += 1;
 		test_total += 1;
-		print_testcase("not ok", proc->name, c.reason, "", test_total);
+		print_testcase("not ok", proc->name, c.reason, NULL, test_total);
 		break;
 	}
 
@@ -543,7 +543,7 @@ run_testcase(struct procedure *proc)
 void print_testcase(char *status, char *name, char *reason, char *directive, size_t number)
 {
 	printf("%s %zu", status, number);
-	if (directive != "")
+	if (directive)
 		printf(" - %s # %s\n", name, directive);
 	else
 		if (reason)
