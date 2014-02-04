@@ -129,7 +129,7 @@ static size_t	test_total = 0;
 
 static struct op *op_add_child(struct op *, const struct op *);
 static void run_testcase(struct procedure *);
-static void print_testcase(char *status, char *name, char *reason, size_t number);
+static void print_testcase(char *status, char *name, char *reason, char *directive, size_t number);
 static void process_op(struct ctx *, struct op *);
 static const char * parse_smtp_response(char *, size_t, char **, int *);
 
@@ -471,15 +471,6 @@ run_testcase(struct procedure *proc)
 
 	fflush(stdout);
 
-	if (proc->flags & PROC_SKIP) {
-		if (verbose > 1)
-			printf(": skip\n\n");
-		else
-			printf("skip\n");
-		test_skip += 1;
-		return;
-	}
-
 	if (verbose > 1)
 		printf("\n");
 
@@ -501,36 +492,45 @@ run_testcase(struct procedure *proc)
 	case RES_OK:
 		test_total += 1;
 		if (proc->flags & PROC_EXPECTFAIL) {
-			print_testcase("not ok", proc->name, strcat("TODO", c.reason), test_total); // XPass
+			print_testcase("not ok", proc->name, c.reason, "TODO", test_total); // XPass
 			test_fail += 1;
-		} else {
-			print_testcase("ok", proc->name, c.reason, test_total);
+		} else if (proc->flags & PROC_SKIP) {
+			test_skip += 1;
+			print_testcase("ok", proc->name, c.reason, "SKIP", test_total);
+		}
+		else {
+			print_testcase("ok", proc->name, c.reason, "", test_total);
 			test_pass += 1;
 		}
+
 		break;
 
 	case RES_SKIP:
 		test_skip += 1;
 		test_total += 1;
-		print_testcase("not ok", proc->name, strcat("SKIP", c.reason), test_total); // Skip
+		print_testcase("not ok", proc->name, c.reason, "SKIP", test_total);
 		break;
 
 	case RES_FAIL:
 		test_total += 1;
 		if (proc->flags & PROC_EXPECTFAIL) {
-			print_testcase("not ok", proc->name, strcat("TODO", c.reason), test_total); // XFail
+			print_testcase("not ok", proc->name, c.reason, "TODO", test_total); // XFail
 			test_pass += 1;
-		}
+                } else if (proc->flags & PROC_SKIP) {
+                        test_skip += 1;
+                        print_testcase("ok", proc->name, c.reason, "SKIP", test_total);
+                }
 		else {
-			print_testcase("not ok", proc->name, c.reason, test_total);
+			print_testcase("not ok", proc->name, c.reason, "", test_total);
 			test_fail += 1;
 		}
+
 		break;
 
 	case RES_ERROR:
 		test_error += 1;
 		test_total += 1;
-		print_testcase("not ok", proc->name, c.reason, test_total);
+		print_testcase("not ok", proc->name, c.reason, "", test_total);
 		break;
 	}
 
@@ -540,16 +540,16 @@ run_testcase(struct procedure *proc)
 
 }
 
-void print_testcase(char *status, char *name, char *reason, size_t number)
+void print_testcase(char *status, char *name, char *reason, char *directive, size_t number)
 {
-        char	buf[256];
-	printf("%s", status);
-	snprintf(buf, sizeof buf, "- %s", name);
-	printf(" %zu %s", number, buf);
-	if (reason)
-		printf(" # %s\n", reason);
+	printf("%s %zu", status, number);
+	if (directive != "")
+		printf(" - %s # %s\n", name, directive);
 	else
-		printf("\n");
+		if (reason)
+			printf(" - %s # %s\n", name, reason);
+		else
+			printf(" - %s\n", name);
 }
 
 static size_t
