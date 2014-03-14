@@ -16,13 +16,13 @@ A smtpscript will look like:
     # each of the test-case will be called sequentially
     test-case name "mailfrom.empty" {
         call init-helo
-        writeln "MAIL FROM: <>"
+        writeln "MAIL FROM:<>"
         expect smtp ok
     }
     
     test-case name "mailfrom.broken" {
         call init-helo
-        writeln "MAIL FROM: < @bleh>"
+        writeln "MAIL FROM:< @bleh>"
         expect smtp permfail
     }
 
