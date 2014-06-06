@@ -1,0 +1,69 @@
+# Copyright (c) 2014 Sergey Bronnikov <estetus@gmail.com>
+#
+# Used standards:
+#	http://tools.ietf.org/html/rfc2821
+#	http://tools.ietf.org/html/rfc2822
+#	http://tools.ietf.org/html/rfc3696
+#	http://tools.ietf.org/html/rfc5321
+
+proc init-helo {
+	expect smtp ok
+	writeln "HELO regress"
+	expect smtp helo
+}
+
+test-case name "mailfrom-empty" {
+	call init-helo
+	writeln "MAIL FROM: <>"
+	expect smtp ok
+}
+
+test-case name "mailfrom-without-local" {
+	call init-helo
+	writeln "MAIL FROM: < @doe>"
+	expect smtp permfail
+}
+
+test-case name "mailfrom-without-domain" {
+	call init-helo
+	writeln "MAIL FROM: <john@ >"
+	expect smtp permfail
+}
+
+# max lentgh of local part
+test-case name "mailfrom-max-local-part1" {
+	call init-helo
+	writeln "MAIL FROM: <abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz01234567891011@doe>"
+	expect smtp ok
+}
+
+# FIXME: more than max length of local part
+test-case name "mailfrom-max-local-part2" {
+	call init-helo
+	writeln "MAIL FROM: <abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz012345678910@doe>"
+	expect smtp ok
+}
+
+test-case name "mailfrom-max-email" {
+	call init-helo
+	writeln "MAIL FROM: <64@255>"
+	expect smtp ok
+}
+
+test-case name "mailrom-min-email" {
+	call init-helo
+	writeln "MAIL FROM: <a@a>"
+	expect smtp ok
+}
+
+test-case name "mailfrom-special-symbols1" {
+	call init-helo
+	writeln "MAIL FROM: <!#$%&'*+-/=?^_`.{|}~@doe>"
+	expect smtp ok
+}
+
+test-case name "mailfrom-special-symbols2" {
+	call init-helo
+	writeln "MAIL FROM: <_somename@example.com>"
+	expect smtp ok
+}
